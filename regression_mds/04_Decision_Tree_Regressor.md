@@ -1,171 +1,373 @@
-# Decision Tree Regressor --- Complete Notes
+# Decision Tree Regression — Complete Notes
 
-## 1. What is a Decision Tree Regressor?
+## 1. What Is Decision Tree Regression?
 
-A Decision Tree predicts a continuous target by repeatedly splitting the
-data into smaller groups using feature conditions.
+Decision Tree Regression is a supervised Machine Learning algorithm used to predict continuous numerical values.
 
-Example: - Is `horsepower <= 84.5`? - If yes, follow the left branch. -
-If no, follow the right branch.
+It learns a series of decision rules that split the dataset into smaller groups. Each final group is called a **leaf**, and the model predicts a numerical value for observations that reach that leaf.
 
-The thresholds are learned from the training data; we do not need to
-specify them manually.
+Unlike Linear Regression, which fits a straight line, a Decision Tree can learn nonlinear relationships by splitting the input space into regions.
 
-## 2. How does the tree choose a split?
+### Our Practice Example: Auto MPG Dataset
 
-At a node, the tree considers candidate features and thresholds. For
-regression, it commonly chooses the split that produces the greatest
-reduction in squared error, measured through weighted mean squared error
-(MSE).
+We used the Auto MPG dataset to predict fuel efficiency.
 
-Conceptually: 1. Try a candidate feature and threshold. 2. Divide rows
-into left and right groups. 3. Calculate the weighted MSE of the child
-groups. 4. Compare candidate splits. 5. Choose the split with the lowest
-weighted child error. 6. Repeat at the child nodes until a stopping rule
-is reached.
+- `horsepower` — input feature (`X`)
+- `mpg` — target (`y`)
+- `max_depth=3` — limits the tree's depth
 
-For example, the tree may test `horsepower <= 70`, `horsepower <= 80`,
-and `horsepower <= 90`. It evaluates these candidate thresholds and
-selects the best available split.
+Our goal is to predict MPG based on horsepower.
 
-## 3. How does a leaf make a prediction?
+## 2. How Does a Decision Tree Work?
 
-When a new row reaches a leaf, a regression tree usually predicts the
-**average target value** of the training samples in that leaf.
+A Decision Tree repeatedly asks questions about feature values.
 
-If a leaf contains training MPG values 20, 22, and 24, its prediction
-is:
+For example, a learned tree might ask:
 
-\[ (20 + 22 + 24) / 3 = 22 \]
+- Is horsepower less than or equal to a threshold?
+- If yes, follow the left branch.
+- If no, follow the right branch.
+- Continue until a leaf is reached.
+- Return the prediction stored in that leaf.
 
-## 4. Train a Decision Tree Regressor
+The actual thresholds are learned from the training data. They are not manually specified.
 
-``` python
-from sklearn.tree import DecisionTreeRegressor
-from sklearn.metrics import r2_score
+A regression tree typically predicts the **mean target value of the training samples in the leaf**.
 
+## 3. Load and Prepare the Dataset
+
+### Jupyter Notebook — Cell 1
+
+```python
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+
+from sklearn.model_selection import train_test_split
+from sklearn.tree import DecisionTreeRegressor, plot_tree
+from sklearn.metrics import (
+    r2_score,
+    mean_absolute_error,
+    mean_squared_error
+)
+```
+
+### Jupyter Notebook — Cell 2
+
+```python
+columns = [
+    "mpg", "cylinders", "displacement", "horsepower",
+    "weight", "acceleration", "model_year", "origin"
+]
+
+df = pd.read_csv(
+    "auto-mpg.csv",
+    header=None,
+    names=columns,
+    na_values="?"
+)
+
+df["horsepower"] = pd.to_numeric(
+    df["horsepower"],
+    errors="coerce"
+)
+
+df = df.dropna().copy()
+
+print("Dataset shape:", df.shape)
+df.head()
+```
+
+After cleaning, our dataset contains 392 rows.
+
+## 4. Select the Feature and Target
+
+### Jupyter Notebook — Cell 3
+
+```python
 X = df[["horsepower"]]
 y = df["mpg"]
 
+print("X shape:", X.shape)
+print("y shape:", y.shape)
+```
+
+We use double brackets for `X` because scikit-learn expects a two-dimensional feature matrix.
+
+## 5. Split the Data
+
+### Jupyter Notebook — Cell 4
+
+```python
 X_train, X_test, y_train, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42
+    X,
+    y,
+    test_size=0.2,
+    random_state=42
 )
 
+print("Training samples:", len(X_train))
+print("Testing samples:", len(X_test))
+```
+
+The split gives 313 training samples and 79 test samples.
+
+The tree learns its splitting rules from the training data. The test data is reserved for evaluating its predictions.
+
+## 6. Train the Decision Tree Regressor
+
+### Jupyter Notebook — Cell 5
+
+```python
 dt_model = DecisionTreeRegressor(
     max_depth=3,
     random_state=42
 )
 
 dt_model.fit(X_train, y_train)
+
 y_pred = dt_model.predict(X_test)
 
-print("Decision Tree R²:", r2_score(y_test, y_pred))
+print("R2 Score:", r2_score(y_test, y_pred))
 ```
 
-`max_depth=3` limits the tree to at most three levels of splits (depth
-is counted from the root according to scikit-learn's convention).
+In our practice, this model achieved an \(R^2\) score of approximately **0.6104**.
 
-## 5. Visualize the tree
+Your exact result should be checked by running the notebook with the same dataset and split.
 
-``` python
-import matplotlib.pyplot as plt
-from sklearn.tree import plot_tree
+### What does `max_depth=3` mean?
 
-plt.figure(figsize=(16, 8))
+It limits the maximum number of edges from the root to a leaf to three.
+
+- Smaller depth: simpler model, potentially underfits.
+- Larger depth: more complex model, potentially overfits.
+- No explicit depth limit: the tree can grow until other stopping conditions apply.
+
+`max_depth` is a **hyperparameter** chosen before fitting.
+
+## 7. How Does the Tree Choose a Split?
+
+For regression, scikit-learn's default `criterion="squared_error"` evaluates splits using the reduction in squared-error impurity.
+
+At a node, the algorithm considers candidate features and thresholds. For each candidate split, it calculates the weighted impurity of the resulting child nodes.
+
+A good split creates child groups whose target values are more consistent than those in the parent.
+
+The algorithm selects a split that maximizes the reduction in impurity, subject to the tree's constraints.
+
+### Mean Squared Error at a Node
+
+\[
+MSE=\frac{1}{n}\sum_{i=1}^{n}(y_i-\bar y)^2
+\]
+
+Where:
+- \(y_i\) = actual MPG for a sample.
+- \(\bar y\) = mean MPG of the samples in that node.
+- \(n\) = number of samples in the node.
+
+### Weighted Impurity After a Split
+
+\[
+I_{\text{split}}=
+\frac{n_L}{n}I_L+
+\frac{n_R}{n}I_R
+\]
+
+Where:
+- \(n_L\), \(n_R\) = sample counts in the left and right children.
+- \(I_L\), \(I_R\) = their impurity values.
+- \(n=n_L+n_R\).
+
+The split is useful when the weighted child impurity is lower than the parent's impurity.
+
+## 8. Visualize the Decision Tree
+
+### Jupyter Notebook — Cell 6
+
+```python
+plt.figure(figsize=(18, 9))
+
 plot_tree(
     dt_model,
-    feature_names=X.columns,
+    feature_names=["horsepower"],
     filled=True,
-    rounded=True
+    rounded=True,
+    precision=2
 )
+
+plt.title("Decision Tree Regressor")
 plt.show()
 ```
 
-Important values in a regression tree plot: - `feature <= threshold`:
-condition used at that node. - `samples`: number of training rows
-reaching that node. - `value`: average target value of those samples. -
-`squared_error`: variation in target values at that node (impurity for
-squared-error regression).
+### How to read the tree
 
-## 6. Plot the predictions with one feature
+Each node can display:
 
-``` python
-X_sorted = X.sort_values("horsepower")
+- **`horsepower <= threshold`**: the split condition.
+- **`squared_error`**: impurity at that node.
+- **`samples`**: number of training observations reaching that node.
+- **`value`**: mean MPG of the training observations in that node.
 
-plt.scatter(X["horsepower"], y, alpha=0.6)
+The root is the first node. The leaves are the terminal nodes that produce predictions.
+
+For an observation, follow the split rules until reaching a leaf. The leaf's `value` is the predicted MPG.
+
+## 9. Visualize Predictions
+
+### Jupyter Notebook — Cell 7
+
+```python
+x_sorted = X.sort_values("horsepower")
+
+plt.scatter(X["horsepower"], y, alpha=0.5, label="Actual data")
+
 plt.plot(
-    X_sorted["horsepower"],
-    dt_model.predict(X_sorted),
-    color="red"
+    x_sorted["horsepower"],
+    dt_model.predict(x_sorted),
+    color="red",
+    label="Decision Tree prediction"
 )
+
 plt.xlabel("Horsepower")
 plt.ylabel("MPG")
-plt.title("Decision Tree Regression")
+plt.title("Decision Tree Regression: Horsepower vs MPG")
+plt.legend()
 plt.show()
 ```
 
-A tree's prediction curve is step-like because all inputs in a leaf
-receive the same prediction.
+The Decision Tree produces a **step-like prediction curve**, not a smooth line. Within each leaf's interval, the prediction is constant.
 
-## 7. Main hyperparameters
+## 10. Evaluate the Model
 
--   `max_depth`: limits tree depth.
--   `min_samples_split`: minimum rows required to split a node.
--   `min_samples_leaf`: minimum rows allowed in a leaf.
--   `max_features`: number or fraction of features considered when
-    searching for splits.
+### Jupyter Notebook — Cell 8
 
-## 8. Overfitting
+```python
+mse = mean_squared_error(y_test, y_pred)
+rmse = np.sqrt(mse)
 
-A very deep tree can create many small leaves and fit training data
-closely. This can lead to poor predictions on unseen data.
+print("R2 Score:", r2_score(y_test, y_pred))
+print("MAE:", mean_absolute_error(y_test, y_pred))
+print("MSE:", mse)
+print("RMSE:", rmse)
+```
 
-Ways to control complexity: - Limit `max_depth`. - Increase
-`min_samples_leaf`. - Increase `min_samples_split`. - Select settings
-using validation data or cross-validation.
+- **R²:** measures performance relative to the test-set mean-prediction baseline.
+- **MAE:** average absolute error in MPG.
+- **MSE:** average squared error.
+- **RMSE:** square root of MSE, expressed in MPG.
 
-## 9. Tune `max_depth` using validation data
+A higher R² and lower error metrics are generally preferable when comparing models on the same test set.
 
-``` python
-from sklearn.metrics import r2_score
-from sklearn.tree import DecisionTreeRegressor
+## 11. Experiment with Tree Depth
 
-depths = [1, 2, 3, 4, 5, 6, 8, 10, None]
-best_depth = None
-best_score = float("-inf")
+### Jupyter Notebook — Cell 9
 
-for depth in depths:
+```python
+for depth in [1, 2, 3, 4, 5, 8, None]:
     model = DecisionTreeRegressor(
         max_depth=depth,
         random_state=42
     )
+
     model.fit(X_train, y_train)
-    val_pred = model.predict(X_val)
-    score = r2_score(y_val, val_pred)
 
-    print(f"Depth={depth}, validation R²={score:.4f}")
+    train_pred = model.predict(X_train)
+    test_pred = model.predict(X_test)
 
-    if score > best_score:
-        best_score = score
-        best_depth = depth
-
-print("Best depth:", best_depth)
-print("Best validation R²:", best_score)
+    print(f"Max depth: {depth}")
+    print("Train R2:", r2_score(y_train, train_pred))
+    print("Test R2:", r2_score(y_test, test_pred))
+    print("-" * 30)
 ```
 
-This code assumes `X_train`, `X_val`, `y_train`, and `y_val` were
-created using the train/validation/test workflow. Do not use `X_test` to
-choose the depth.
+### How to interpret the results
 
-After choosing the depth, retrain using the combined training +
-validation data, then evaluate once on the test set.
+- Shallow trees may miss important patterns.
+- Deeper trees can fit the training data more closely.
+- Very deep trees may memorize noise and generalize poorly.
+- The best depth depends on the dataset.
 
-## 10. Strengths and limitations
+For rigorous hyperparameter selection, use a validation set or cross-validation instead of repeatedly selecting the best result on the test set.
 
-**Strengths** - Easy to explain and visualize. - Captures nonlinear
-relationships. - Does not require feature scaling for ordinary tree
-splits.
+## 12. Important Hyperparameters
 
-**Limitations** - A single tree can be unstable and overfit. -
-Predictions are piecewise constant. - Small data changes can produce a
-different tree.
+| Hyperparameter | Purpose |
+|---|---|
+| `max_depth` | Maximum depth of the tree |
+| `min_samples_split` | Minimum number of samples required to split a node |
+| `min_samples_leaf` | Minimum number of training samples required in a leaf |
+| `max_leaf_nodes` | Limits the number of leaves |
+| `criterion` | Impurity measure used to evaluate splits |
+| `random_state` | Controls randomness for reproducibility |
+
+These are configuration choices. The splitting thresholds and leaf predictions are learned during training.
+
+## 13. Advantages and Limitations
+
+### Advantages
+
+- Captures nonlinear relationships.
+- Does not require feature standardization for this tree-based model.
+- Learns decision rules automatically.
+- Can model interactions through sequential splits.
+- Easy to visualize when the tree is small.
+
+### Limitations
+
+- Deep trees can overfit.
+- Small data changes can produce a different tree.
+- Predictions are piecewise constant, so the curve is not smooth.
+- Individual trees can be less accurate than ensemble models.
+
+## 14. Common Interview Questions
+
+**1. What is Decision Tree Regression?**
+
+A regression algorithm that recursively partitions the feature space and predicts a numerical value in each leaf.
+
+**2. How does a regression tree choose a split?**
+
+It evaluates candidate feature-threshold splits and chooses one that reduces weighted impurity.
+
+**3. What does a leaf predict?**
+
+With the default squared-error criterion, the mean target value of the training samples reaching that leaf.
+
+**4. What does `max_depth` control?**
+
+The maximum distance from the root to a leaf.
+
+**5. Does a Decision Tree need feature scaling?**
+
+Usually not. Its threshold comparisons are generally unaffected by ordinary scaling of a feature.
+
+**6. Why do Decision Trees overfit?**
+
+Deep trees can create narrow regions that fit individual training observations or noise.
+
+**7. Why are tree predictions step-like?**
+
+All observations reaching the same leaf receive the same prediction.
+
+**8. What is the difference between a Decision Tree and Random Forest?**
+
+A Decision Tree uses one tree. A Random Forest combines predictions from many trees to improve robustness and often generalization.
+
+**9. What is `squared_error` in a tree plot?**
+
+It is the node's mean squared-error impurity, based on target variation among training samples in that node.
+
+## 15. Quick Revision
+
+- We used Auto MPG to predict `mpg` from `horsepower`.
+- We cleaned the dataset to 392 rows.
+- We split it into 313 training and 79 test samples.
+- We trained `DecisionTreeRegressor(max_depth=3)`.
+- Our observed test R² was approximately 0.6104.
+- The tree learns feature thresholds during training.
+- Regression leaves predict the mean target under the default squared-error criterion.
+- `max_depth` controls complexity.
+- Tree predictions are piecewise constant.
+- Deep trees can overfit.
+- Evaluate models on unseen data and tune hyperparameters using validation data.
